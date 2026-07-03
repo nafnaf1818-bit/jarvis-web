@@ -27,9 +27,15 @@
 
   <!-- Actions -->
   <div class="actions-bar">
-    <button class="btn btn-primary btn-big" onclick="actualiser()">
+    {% if google_ok %}
+    <button class="btn btn-primary btn-big" id="btn-sync" onclick="syncGmail()">
+      ⟳ Actualiser depuis Gmail
+    </button>
+    {% else %}
+    <button class="btn btn-ghost btn-big" onclick="actualiser()">
       ↺ Actualiser
     </button>
+    {% endif %}
     <button class="btn btn-ghost btn-big" onclick="lireVoixHaute()">
       ▶ Lire à voix haute
     </button>
@@ -83,6 +89,26 @@
     el.textContent = msg;
     document.getElementById('toasts').appendChild(el);
     setTimeout(() => el.remove(), 3500);
+  }
+
+  async function syncGmail() {
+    const btn = document.getElementById('btn-sync');
+    if (btn) { btn.disabled = true; btn.textContent = '⟳ Lecture Gmail…'; }
+    toast('Connexion à Gmail + Calendar…');
+    try {
+      const r = await fetch('/api/sync', { method: 'POST' });
+      const d = await r.json();
+      if (d.ok) {
+        toast(`✓ ${d.tasks_created} tâche(s) générées`, '#2ecc71');
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        toast('Erreur : ' + (d.error || 'inconnue'), '#e74c3c');
+        if (btn) { btn.disabled = false; btn.textContent = '⟳ Actualiser depuis Gmail'; }
+      }
+    } catch(e) {
+      toast('Erreur réseau', '#e74c3c');
+      if (btn) { btn.disabled = false; btn.textContent = '⟳ Actualiser depuis Gmail'; }
+    }
   }
 
   async function actualiser() {
