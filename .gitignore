@@ -1,5 +1,8 @@
 .env
+.env.google
 *.db
+credentials.json
+gh_cli/
 __pycache__/
 *.pyc
 *.pyo
