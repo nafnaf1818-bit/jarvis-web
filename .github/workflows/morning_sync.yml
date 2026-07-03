@@ -1,0 +1,39 @@
+name: JARVIS · Tri du matin
+
+on:
+  schedule:
+    # 7h00 heure de Paris (UTC+2 en été, UTC+1 en hiver)
+    # On utilise 5h UTC pour couvrir l'heure d'été (CEST)
+    - cron: '0 5 * * 1-5'   # lundi–vendredi
+    - cron: '0 6 * * 1-5'   # décalage heure d'hiver (CET) — GitHub choisit le plus proche
+  workflow_dispatch:          # déclenchement manuel depuis GitHub
+
+jobs:
+  sync:
+    name: Lire Gmail + classer les emails
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Réveiller Render et déclencher le tri
+        run: |
+          echo "$(date '+%Y-%m-%d %H:%M:%S UTC') — Déclenchement du tri JARVIS..."
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST https://jarvis-web-f7ez.onrender.com/api/sync \
+            -H "Content-Type: application/json" \
+            --max-time 120 \
+            --retry 2 \
+            --retry-delay 15)
+
+          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          body=$(echo "$response" | grep -v "HTTP_STATUS:")
+
+          echo "Statut HTTP : $http_status"
+          echo "Réponse : $body"
+
+          if [ "$http_status" != "200" ]; then
+            echo "❌ Erreur lors du tri"
+            exit 1
+          fi
+
+          echo "✅ Tri terminé avec succès"
