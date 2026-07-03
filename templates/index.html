@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JARVIS · tri du matin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">JARVIS <span>· assistant IA</span></div>
+    <nav>
+      <a href="/" class="active">Tri du matin</a>
+      <a href="/todo">To-do</a>
+    </nav>
+  </div>
+</header>
+
+<div class="layout">
+
+  <div class="page-title">
+    <h1>JARVIS · tri du matin</h1>
+    <p>Analyse et classification intelligente de ta boîte mail</p>
+  </div>
+
+  <!-- Compteurs -->
+  <div class="counters">
+    <div class="counter-card spam">
+      <div class="num" id="cnt-spam">{{ counts.spam }}</div>
+      <div class="label">Spams filtrés</div>
+    </div>
+    <div class="counter-card auto">
+      <div class="num" id="cnt-auto">{{ counts.auto }}</div>
+      <div class="label">Traités auto</div>
+    </div>
+    <div class="counter-card pending">
+      <div class="num" id="cnt-pending">{{ counts.pending }}</div>
+      <div class="label">À valider</div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions-bar">
+    <button class="btn btn-primary btn-big" onclick="retrier()">
+      ↺ Re-trier ma boîte
+    </button>
+  </div>
+
+  <!-- Mails à valider -->
+  <div class="section-head">
+    <h2>Mails à valider</h2>
+  </div>
+
+  <div class="email-list" id="email-list">
+    {% if emails %}
+      {% for mail in emails %}
+      <div class="email-card" id="card-{{ loop.index }}">
+        <div class="email-meta">
+          <div class="email-avatar">{{ mail.sender[0]|upper if mail.sender else '?' }}</div>
+          <div>
+            <div class="email-from">{{ mail.sender }}</div>
+            <div class="email-subject">{{ mail.subject }}</div>
+          </div>
+        </div>
+
+        {% if mail.summary %}
+        <div class="email-summary">{{ mail.summary }}</div>
+        {% endif %}
+
+        {% if mail.draft_reply %}
+        <div class="draft-block">
+          <div class="draft-label">Brouillon de réponse IA</div>
+          <div class="draft-text" id="draft-{{ loop.index }}">{{ mail.draft_reply }}</div>
+        </div>
+        {% endif %}
+
+        <div class="email-actions">
+          {% if mail.draft_reply %}
+          <button class="btn btn-primary" onclick="createDraft('{{ mail.message_id }}', {{ loop.index }})">
+            ✉ Créer le brouillon
+          </button>
+          <button class="btn btn-ghost" onclick="copyDraft({{ loop.index }})">
+            ⎘ Copier
+          </button>
+          {% endif %}
+          <button class="btn btn-danger" onclick="markSpam('{{ mail.message_id }}', {{ loop.index }})">
+            ✕ Spam
+          </button>
+          <button class="btn btn-ghost" onclick="markDone('{{ mail.message_id }}', {{ loop.index }})">
+            ✓ Traité
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">
+        <div class="icon">✦</div>
+        <p>Aucun mail en attente de validation.<br>Lance un tri ou envoie des données via n8n.</p>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+  function toast(msg, color) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    if (color) el.style.borderLeftColor = color;
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  async function retrier() {
+    toast('Re-tri en cours…');
+    const r = await fetch('/api/retrier', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      toast('Tri terminé ✓', '#2ecc71');
+      setTimeout(() => location.reload(), 800);
+    }
+  }
+
+  async function createDraft(messageId, idx) {
+    const draft = document.getElementById('draft-' + idx)?.textContent || '';
+    await navigator.clipboard.writeText(draft).catch(() => {});
+    await fetch('/api/email/' + encodeURIComponent(messageId) + '/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'auto' })
+    });
+    toast('Brouillon copié dans le presse-papiers ✓', '#2ecc71');
+    fadeCard(idx);
+  }
+
+  function copyDraft(idx) {
+    const text = document.getElementById('draft-' + idx)?.textContent || '';
+    navigator.clipboard.writeText(text).then(() => toast('Copié ✓', '#2ecc71'));
+  }
+
+  async function markSpam(messageId, idx) {
+    await fetch('/api/email/' + encodeURIComponent(messageId) + '/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'spam' })
+    });
+    toast('Marqué comme spam', '#e74c3c');
+    fadeCard(idx);
+  }
+
+  async function markDone(messageId, idx) {
+    await fetch('/api/email/' + encodeURIComponent(messageId) + '/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'auto' })
+    });
+    toast('Marqué comme traité ✓');
+    fadeCard(idx);
+  }
+
+  function fadeCard(idx) {
+    const card = document.getElementById('card-' + idx);
+    if (card) {
+      card.style.transition = 'opacity .4s';
+      card.style.opacity = '0';
+      setTimeout(() => card.remove(), 450);
+    }
+  }
+</script>
+</body>
+</html>

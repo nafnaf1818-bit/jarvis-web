@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JARVIS · to-do du jour</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">JARVIS <span>· assistant IA</span></div>
+    <nav>
+      <a href="/">Tri du matin</a>
+      <a href="/todo" class="active">To-do</a>
+    </nav>
+  </div>
+</header>
+
+<div class="layout">
+
+  <div class="page-title">
+    <h1>JARVIS · assistant local — Ta to-do du jour</h1>
+    <p>Tâches extraites de tes mails et agenda, triées par priorité</p>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions-bar">
+    <button class="btn btn-primary btn-big" onclick="actualiser()">
+      ↺ Actualiser
+    </button>
+    <button class="btn btn-ghost btn-big" onclick="lireVoixHaute()">
+      ▶ Lire à voix haute
+    </button>
+    <button class="btn btn-ghost btn-big" id="btn-stop" onclick="stopVoix()" style="display:none;">
+      ■ Stop
+    </button>
+  </div>
+
+  <!-- Task list -->
+  <div class="task-list" id="task-list">
+    {% if tasks %}
+      {% for task in tasks %}
+      <div class="task-card" id="task-{{ task.id }}">
+        <input type="checkbox" class="task-checkbox"
+               onchange="taskDone({{ task.id }}, this)"
+               title="Marquer comme fait">
+        <div class="task-body">
+          <div class="task-title">{{ task.title }}</div>
+          {% if task.description %}
+          <div class="task-desc">{{ task.description }}</div>
+          {% endif %}
+          {% if task.source %}
+          <div class="task-source">Source : {{ task.source }}{% if task.due_date %} · {{ task.due_date }}{% endif %}</div>
+          {% endif %}
+        </div>
+        <span class="badge
+          {% if task.priority == 'URGENT' %}badge-urgent
+          {% elif task.priority == "AUJOURD'HUI" %}badge-today
+          {% else %}badge-week{% endif %}">
+          {{ task.priority }}
+        </span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">
+        <div class="icon">✦</div>
+        <p>Aucune tâche pour le moment.<br>Envoie tes mails via n8n ou clique sur Actualiser.</p>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+  function toast(msg, color) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    if (color) el.style.borderLeftColor = color;
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  async function actualiser() {
+    toast('Actualisation…');
+    setTimeout(() => location.reload(), 600);
+  }
+
+  async function taskDone(taskId, checkbox) {
+    checkbox.disabled = true;
+    const r = await fetch('/api/task/' + taskId + '/done', { method: 'POST' });
+    if (r.ok) {
+      const card = document.getElementById('task-' + taskId);
+      if (card) {
+        card.style.transition = 'opacity .5s';
+        card.style.opacity = '0';
+        setTimeout(() => card.remove(), 520);
+      }
+      toast('Tâche terminée ✓', '#2ecc71');
+    }
+  }
+
+  // --- Web Speech API ---
+  let synth = window.speechSynthesis;
+  let utterances = [];
+
+  function lireVoixHaute() {
+    if (!synth) { toast('Web Speech non supporté dans ce navigateur', '#e74c3c'); return; }
+    synth.cancel();
+    utterances = [];
+
+    const tasks = document.querySelectorAll('.task-card');
+    if (!tasks.length) { toast('Aucune tâche à lire'); return; }
+
+    const intro = new SpeechSynthesisUtterance('Voici ta liste de tâches du jour.');
+    intro.lang = 'fr-FR';
+    utterances.push(intro);
+
+    tasks.forEach((card, i) => {
+      const title = card.querySelector('.task-title')?.textContent || '';
+      const badge = card.querySelector('.badge')?.textContent?.trim() || '';
+      const u = new SpeechSynthesisUtterance(`Tâche ${i + 1} : ${badge}. ${title}`);
+      u.lang = 'fr-FR';
+      u.rate = 0.95;
+      utterances.push(u);
+    });
+
+    utterances[utterances.length - 1].onend = () => {
+      document.getElementById('btn-stop').style.display = 'none';
+    };
+
+    utterances.forEach(u => synth.speak(u));
+    document.getElementById('btn-stop').style.display = '';
+    toast('Lecture en cours…', '#2ecc71');
+  }
+
+  function stopVoix() {
+    synth.cancel();
+    document.getElementById('btn-stop').style.display = 'none';
+    toast('Lecture arrêtée');
+  }
+</script>
+</body>
+</html>
