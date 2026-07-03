@@ -72,7 +72,7 @@ def fetch_emails(hours_back: int = 24, max_results: int = 30) -> list:
 
     for msg in raw_messages:
         detail = service.users().messages().get(
-            userId="me", messageId=msg["id"], format="full"
+            userId="me", id=msg["id"], format="full"
         ).execute()
 
         headers = {
