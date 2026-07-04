@@ -48,18 +48,20 @@ Règles :
 - pending = emails nécessitant une vraie décision ou réponse personnelle
 - Pour pending, écris un brouillon de réponse professionnel et chaleureux en français"""
 
+    raw = _chat([{"role": "user", "content": prompt}])
+
     try:
-        raw = _chat([{"role": "user", "content": prompt}])
         data = json.loads(raw)
-        if data.get("is_new_spam_sender") and data.get("status") == "spam":
-            add_spam_sender(sender, reason="Détecté par IA")
-        return {
-            "status": data.get("status", "pending"),
-            "summary": data.get("summary", ""),
-            "draft_reply": data.get("draft_reply", ""),
-        }
-    except (json.JSONDecodeError, Exception):
+    except json.JSONDecodeError:
         return {"status": "pending", "summary": "Analyse impossible.", "draft_reply": ""}
+
+    if data.get("is_new_spam_sender") and data.get("status") == "spam":
+        add_spam_sender(sender, reason="Détecté par IA")
+    return {
+        "status": data.get("status", "pending"),
+        "summary": data.get("summary", ""),
+        "draft_reply": data.get("draft_reply", ""),
+    }
 
 
 def extract_tasks(emails: list, calendar_events: list) -> list:
@@ -97,12 +99,12 @@ Règles de priorité :
 - AUJOURD'HUI = à faire aujourd'hui mais pas urgence critique
 - CETTE SEMAINE = important mais peut attendre quelques jours"""
 
+    raw = _chat([{"role": "user", "content": prompt}], temperature=0.2)
     try:
-        raw = _chat([{"role": "user", "content": prompt}], temperature=0.2)
         tasks = json.loads(raw)
-        return tasks if isinstance(tasks, list) else []
-    except Exception:
+    except json.JSONDecodeError:
         return []
+    return tasks if isinstance(tasks, list) else []
 
 
 def generate_auto_reply(sender: str, subject: str, body: str) -> str:
